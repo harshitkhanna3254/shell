@@ -2,10 +2,27 @@
 #include <stdlib.h>
 #include <string.h>
 
+int is_supported_command(const char *command, const char *commands_supported[], size_t count_commands)
+{
+  for (size_t i = 0; i < count_commands; i++)
+  {
+    if (strcmp(command, commands_supported[i]) == 0)
+    {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
 int main(int argc, char *argv[])
 {
   // Flush after every printf
   setbuf(stdout, NULL);
+
+  // Supported commands
+  const char *commands_supported[] = {"echo", "exit", "type"};
+  const size_t count_commands = sizeof(commands_supported) / sizeof(commands_supported[0]);
 
   while (1)
   {
@@ -28,27 +45,47 @@ int main(int argc, char *argv[])
       line[linelen - 1] = '\0';
     }
 
-    // if the shell receives the string "exit" then terminate shell
-    if (strcmp("exit", line) == 0)
+    char *command = line;
+    char *args = strchr(line, ' ');
+
+    if (args != NULL)
     {
+      *args = '\0';
+      args++;
+    }
+
+    if (!is_supported_command(command, commands_supported, count_commands))
+    {
+      printf("%s: command not found\n", command);
+      free(line);
+      continue;
+    }
+
+    // if the shell receives the string "exit" then terminate shell
+    if (strcmp("exit", command) == 0)
+    {
+      free(line);
       break;
     }
 
-    if (strcmp("echo", line) == 0)
+    if (strcmp("echo", command) == 0)
     {
-      printf("\n");
+      printf("%s\n", args == NULL ? "" : args);
       free(line);
       continue;
     }
 
-    if (strncmp("echo ", line, 5) == 0)
+    if (strcmp("type", command) == 0)
     {
-      printf("%s\n", line + 5);
-      free(line);
-      continue;
+      if (args != NULL && is_supported_command(args, commands_supported, count_commands))
+      {
+        printf("%s is a shell builtin\n", args);
+      }
+      else
+      {
+        printf("%s: not found\n", args == NULL ? "" : args);
+      }
     }
-
-    printf("%s: command not found\n", line);
 
     free(line);
   }
