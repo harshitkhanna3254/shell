@@ -34,6 +34,20 @@ int main(int argc, char *argv[])
       break;
     }
 
+    if (strcmp("echo", line) == 0)
+    {
+      printf("\n");
+      free(line);
+      continue;
+    }
+
+    if (strncmp("echo ", line, 5) == 0)
+    {
+      printf("%s\n", line + 5);
+      free(line);
+      continue;
+    }
+
     printf("%s: command not found\n", line);
 
     free(line);
