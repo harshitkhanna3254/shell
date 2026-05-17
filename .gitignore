@@ -51,5 +51,9 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-build
-vcpkg_installed
+# Build directories
+build/
+build-local/
+cmake-build-*/
+
+vcpkg_installed/
