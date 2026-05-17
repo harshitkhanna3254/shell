@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int main(int argc, char *argv[])
 {
@@ -25,6 +26,12 @@ int main(int argc, char *argv[])
     if (linelen > 0 && line[linelen - 1] == '\n')
     {
       line[linelen - 1] = '\0';
+    }
+
+    // if the shell receives the string "exit" then terminate shell
+    if (strcmp("exit", line) == 0)
+    {
+      break;
     }
 
     printf("%s: command not found\n", line);
