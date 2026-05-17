@@ -1,3 +1,7 @@
+# shell
+
+Building a shell in C.
+
 [![progress-banner](https://backend.codecrafters.io/progress/shell/a2c1d9a0-5891-4549-bdd9-5a912280b056)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
 This is a starting point for C solutions to the
