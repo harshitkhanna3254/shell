@@ -1,12 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
-int is_supported_command(const char *command, const char *commands_supported[], size_t count_commands)
+static int is_builtin_command(const char *command, const char *const builtin_commands[], size_t builtin_count)
 {
-  for (size_t i = 0; i < count_commands; i++)
+  // Check whether the command is implemented by this shell.
+  for (size_t i = 0; i < builtin_count; i++)
   {
-    if (strcmp(command, commands_supported[i]) == 0)
+    if (strcmp(command, builtin_commands[i]) == 0)
     {
       return 1;
     }
@@ -15,53 +18,113 @@ int is_supported_command(const char *command, const char *commands_supported[], 
   return 0;
 }
 
+static char *find_executable_path(const char *command)
+{
+  // Empty commands cannot be resolved to executable files.
+  if (command == NULL || command[0] == '\0')
+  {
+    return NULL;
+  }
+
+  // Use the process PATH to search for external executables.
+  char *path = getenv("PATH");
+  if (path == NULL)
+  {
+    return NULL;
+  }
+
+  // Copy PATH because strtok mutates the buffer while scanning directories.
+  char *path_copy = malloc(strlen(path) + 1);
+  if (path_copy == NULL)
+  {
+    return NULL;
+  }
+  strcpy(path_copy, path);
+
+  char *directory = strtok(path_copy, ":");
+  while (directory != NULL)
+  {
+    // Build one possible executable path from the current PATH directory.
+    size_t candidate_length = strlen(directory) + strlen(command) + 2;
+    char *candidate_path = malloc(candidate_length);
+    if (candidate_path == NULL)
+    {
+      free(path_copy);
+      return NULL;
+    }
+
+    snprintf(candidate_path, candidate_length, "%s/%s", directory, command);
+
+    struct stat file_stat;
+    // A valid match must be a regular file that the current process can execute.
+    if (stat(candidate_path, &file_stat) == 0 && S_ISREG(file_stat.st_mode) && access(candidate_path, X_OK) == 0)
+    {
+      free(path_copy);
+      return candidate_path;
+    }
+
+    // Move on to the next PATH directory after rejecting this candidate.
+    free(candidate_path);
+    directory = strtok(NULL, ":");
+  }
+
+  free(path_copy);
+  return NULL;
+}
+
 int main(int argc, char *argv[])
 {
-  // Flush after every printf
+  (void)argc;
+  (void)argv;
+
+  // Keep prompts and command output visible immediately.
   setbuf(stdout, NULL);
 
-  // Supported commands
-  const char *commands_supported[] = {"echo", "exit", "type"};
-  const size_t count_commands = sizeof(commands_supported) / sizeof(commands_supported[0]);
+  // Builtins are handled inside this process instead of executed from PATH.
+  const char *builtin_commands[] = {"echo", "exit", "type"};
+  const size_t builtin_count = sizeof(builtin_commands) / sizeof(builtin_commands[0]);
 
   while (1)
   {
     printf("$ ");
 
     char *line = NULL;
-    size_t linecap = 0;
+    size_t line_capacity = 0;
 
-    ssize_t linelen = getline(&line, &linecap, stdin);
+    // Read a full command line for the current prompt.
+    ssize_t line_length = getline(&line, &line_capacity, stdin);
 
-    if (linelen == -1)
+    if (line_length == -1)
     {
       free(line);
       break;
     }
 
-    // Remove trailing newline
-    if (linelen > 0 && line[linelen - 1] == '\n')
+    // Drop the newline so commands can be compared directly.
+    if (line_length > 0 && line[line_length - 1] == '\n')
     {
-      line[linelen - 1] = '\0';
+      line[line_length - 1] = '\0';
     }
 
     char *command = line;
-    char *args = strchr(line, ' ');
+    char *arguments = strchr(line, ' ');
 
-    if (args != NULL)
+    // Split the command name from the rest of the input.
+    if (arguments != NULL)
     {
-      *args = '\0';
-      args++;
+      *arguments = '\0';
+      arguments++;
     }
 
-    if (!is_supported_command(command, commands_supported, count_commands))
+    if (!is_builtin_command(command, builtin_commands, builtin_count))
     {
+      // Unknown commands currently fail instead of being executed externally.
       printf("%s: command not found\n", command);
       free(line);
       continue;
     }
 
-    // if the shell receives the string "exit" then terminate shell
+    // Exit terminates the shell loop.
     if (strcmp("exit", command) == 0)
     {
       free(line);
@@ -70,20 +133,34 @@ int main(int argc, char *argv[])
 
     if (strcmp("echo", command) == 0)
     {
-      printf("%s\n", args == NULL ? "" : args);
+      // Echo prints the argument string exactly as entered after the command.
+      printf("%s\n", arguments == NULL ? "" : arguments);
       free(line);
       continue;
     }
 
     if (strcmp("type", command) == 0)
     {
-      if (args != NULL && is_supported_command(args, commands_supported, count_commands))
+      // Type first reports shell builtins before checking the PATH.
+      if (arguments != NULL && is_builtin_command(arguments, builtin_commands, builtin_count))
       {
-        printf("%s is a shell builtin\n", args);
+        printf("%s is a shell builtin\n", arguments);
+        free(line);
+        continue;
       }
       else
       {
-        printf("%s: not found\n", args == NULL ? "" : args);
+        // Non-builtin type arguments are resolved like executable names.
+        char *executable_path = find_executable_path(arguments);
+        if (executable_path != NULL)
+        {
+          printf("%s is %s\n", arguments, executable_path);
+          free(executable_path);
+        }
+        else
+        {
+          printf("%s: not found\n", arguments == NULL ? "" : arguments);
+        }
       }
     }
 
