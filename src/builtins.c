@@ -46,16 +46,16 @@ void shell_run_builtin_command(const shell_command_t *command, bool *should_exit
 
   if (strcmp("cd", command->name) == 0)
   {
+    char *target = command->arguments;
 
     if (strcmp(command->arguments, "~") == 0)
     {
-      char *home_env = getenv("HOME");
-      chdir(home_env);
+      target = getenv("HOME");
     }
 
     // Change the parent shell's working directory, so it persists.
     // chdir returns -1 when the target path cannot be entered.
-    if (chdir(command->arguments) == -1)
+    if (chdir(target) == -1)
     {
       printf("cd: %s: No such file or directory\n", command->arguments);
     }
