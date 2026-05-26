@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
   setbuf(stdout, NULL);
 
   // Builtins are handled inside this process instead of being resolved through PATH.
-  const char *builtin_commands[] = {"echo", "exit", "type"};
+  const char *builtin_commands[] = {"echo", "exit", "type", "pwd"};
   const size_t builtin_count = sizeof(builtin_commands) / sizeof(builtin_commands[0]);
 
   while (1)
@@ -198,6 +198,19 @@ int main(int argc, char *argv[])
       run_external_command(command, arguments);
       // Each loop iteration owns one getline buffer and releases it before continuing.
       free(line);
+      continue;
+    }
+
+    if (strcmp("pwd", command) == 0)
+    {
+      char *temp = NULL;
+      size_t size = 0;
+
+      char *working_dir = getcwd(temp, size);
+
+      printf("%s\n", working_dir);
+
+      free(working_dir);
       continue;
     }
 
