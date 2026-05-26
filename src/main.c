@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
   setbuf(stdout, NULL);
 
   // Builtins are handled inside this process instead of being resolved through PATH.
-  const char *builtin_commands[] = {"echo", "exit", "type", "pwd"};
+  const char *builtin_commands[] = {"echo", "exit", "type", "pwd", "cd"};
   const size_t builtin_count = sizeof(builtin_commands) / sizeof(builtin_commands[0]);
 
   while (1)
@@ -212,6 +212,14 @@ int main(int argc, char *argv[])
 
       free(working_dir);
       continue;
+    }
+
+    if (strcmp("cd", command) == 0)
+    {
+      if (chdir(arguments) == -1)
+      {
+        printf("cd: %s: No such file or directory\n", arguments);
+      }
     }
 
     // Builtin dispatch uses strcmp for exact command-name matches.
