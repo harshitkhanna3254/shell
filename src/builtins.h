@@ -5,10 +5,20 @@
 
 #include <stdbool.h>
 
-// Return whether the command name is handled directly by this shell.
+/**
+ * Check whether a command name is implemented directly by this shell.
+ *
+ * @param command Command name to compare against the builtin table.
+ * @return true when the shell should run the command in-process.
+ */
 bool shell_is_builtin_command(const char *command);
 
-// Execute a builtin command and update loop state when it exits the shell.
+/**
+ * Execute a parsed builtin command in the current shell process.
+ *
+ * @param command Parsed command name and raw argument tail.
+ * @param should_exit Output flag set to true when the exit builtin is run.
+ */
 void shell_run_builtin_command(const shell_command_t *command, bool *should_exit);
 
 #endif
