@@ -1,19 +1,88 @@
 #include "parser.h"
 
-#include <string.h>
+#include <ctype.h>
+#include <stdbool.h>
 
-// Split on the first space so builtins can decide how to treat arguments.
+static void shell_begin_argument(shell_command_t *command, char *start, bool *argument_open)
+{
+  if (*argument_open)
+  {
+    return;
+  }
+
+  if (command->argc < SHELL_MAX_ARGS)
+  {
+    command->argv[command->argc++] = start;
+  }
+
+  *argument_open = true;
+}
+
+static void shell_end_argument(char **write, bool *argument_open)
+{
+  if (!*argument_open)
+  {
+    return;
+  }
+
+  **write = '\0';
+  (*write)++;
+  *argument_open = false;
+}
+
+static bool shell_is_argument_separator(char current, bool in_single_quotes)
+{
+  return !in_single_quotes && isspace((unsigned char)current);
+}
+
+// Split a mutable command line into shell words, removing single quote syntax.
 void shell_parse_command(char *line, shell_command_t *command)
 {
-  // The command name always starts at the beginning of the input buffer.
-  command->name = line;
-  // A first space means everything after it is the raw argument string.
-  command->arguments = strchr(line, ' ');
+  // Reset the command view before filling it from the input buffer.
+  command->name = "";
+  command->argc = 0;
 
-  if (command->arguments != 0)
+  // read scans the original text; write stores the cleaned parsed text.
+  char *read = line;
+  char *write = line;
+
+  // Inside single quotes, whitespace is copied instead of ending an argument.
+  bool in_single_quotes = false;
+  bool argument_open = false;
+
+  for (; *read != '\0'; read++)
   {
-    // Terminate the command name in-place and advance to the argument tail.
-    *command->arguments = '\0';
-    command->arguments++;
+    char current = *read;
+
+    if (current == '\'')
+    {
+      // Quote marks affect parsing, but are not copied into the argument.
+      shell_begin_argument(command, write, &argument_open);
+      in_single_quotes = !in_single_quotes;
+      continue;
+    }
+
+    if (shell_is_argument_separator(current, in_single_quotes))
+    {
+      // Repeated unquoted whitespace collapses because closed args stay closed.
+      shell_end_argument(&write, &argument_open);
+      continue;
+    }
+
+    // Regular characters start or continue the current argument.
+    shell_begin_argument(command, write, &argument_open);
+    *write++ = current;
+  }
+
+  // Terminate the last argument when the line ends.
+  shell_end_argument(&write, &argument_open);
+
+  // execv-style argv arrays must end with a NULL sentinel.
+  command->argv[command->argc] = NULL;
+
+  if (command->argc > 0)
+  {
+    // Keep name as a convenient alias for argv[0].
+    command->name = command->argv[0];
   }
 }

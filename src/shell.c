@@ -32,6 +32,12 @@ int shell_run(void)
     // The parsed command points into line, so line must stay alive while it runs.
     shell_parse_command(line, &command);
 
+    if (command.argc == 0)
+    {
+      free(line);
+      continue;
+    }
+
     // Builtins run in-process; external commands run through fork/exec.
     if (shell_is_builtin_command(command.name))
     {
