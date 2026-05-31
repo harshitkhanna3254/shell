@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <stdbool.h>
+#include <string.h>
 
 static void shell_begin_argument(shell_command_t *command, char *start, bool *argument_open)
 {
@@ -40,18 +41,53 @@ static bool shell_is_double_quote_escape(char current)
   return current == '"' || current == '\\';
 }
 
-// Split a mutable command line into shell words, removing quote syntax.
+static bool shell_is_stdout_redirect_token(const char *token)
+{
+  return strcmp(token, ">") == 0 || strcmp(token, "1>") == 0;
+}
+
+static void shell_mark_current_argument_quoted(const shell_command_t *command, bool argument_was_quoted[])
+{
+  if (command->argc > 0)
+  {
+    argument_was_quoted[command->argc - 1] = true;
+  }
+}
+
+static void shell_extract_stdout_redirect(shell_command_t *command, const bool argument_was_quoted[])
+{
+  for (size_t i = 0; i < command->argc; i++)
+  {
+    if (argument_was_quoted[i] || !shell_is_stdout_redirect_token(command->argv[i]))
+    {
+      continue;
+    }
+
+    if (i + 1 < command->argc)
+    {
+      command->stdout_path = command->argv[i + 1];
+    }
+
+    command->argc = i;
+    command->argv[i] = NULL;
+    return;
+  }
+}
+
+// Parse shell syntax in-place so argv points directly into the input buffer.
 void shell_parse_command(char *line, shell_command_t *command)
 {
-  // Reset the command view before filling it from the input buffer.
+  // Start with an empty command view for blank or whitespace-only input.
   command->name = "";
+  command->stdout_path = NULL;
   command->argc = 0;
+  bool argument_was_quoted[SHELL_MAX_ARGS] = {false};
 
-  // read scans the original text; write stores the cleaned parsed text.
+  // read consumes source text while write compacts parsed text over it.
   char *read = line;
   char *write = line;
 
-  // Inside quotes, whitespace is copied instead of ending an argument.
+  // Quote state decides whether whitespace is data or an argument boundary.
   bool in_single_quotes = false;
   bool in_double_quotes = false;
   bool argument_open = false;
@@ -76,7 +112,7 @@ void shell_parse_command(char *line, shell_command_t *command)
 
     if (current == '\\' && in_double_quotes)
     {
-      // Inside double quotes, backslash only escapes selected characters.
+      // Double quotes only let backslash escape a small set of characters.
       shell_begin_argument(command, write, &argument_open);
 
       if (shell_is_double_quote_escape(read[1]))
@@ -92,41 +128,45 @@ void shell_parse_command(char *line, shell_command_t *command)
 
     if (current == '\'' && !in_double_quotes)
     {
-      // Single quote marks affect parsing, but are not copied into the argument.
+      // Quotes are syntax, not data, unless protected by the other quote type.
       shell_begin_argument(command, write, &argument_open);
+      shell_mark_current_argument_quoted(command, argument_was_quoted);
       in_single_quotes = !in_single_quotes;
       continue;
     }
 
     if (current == '"' && !in_single_quotes)
     {
-      // Double quote marks affect parsing, but are not copied into the argument.
+      // Quotes are syntax, not data, unless protected by the other quote type.
       shell_begin_argument(command, write, &argument_open);
+      shell_mark_current_argument_quoted(command, argument_was_quoted);
       in_double_quotes = !in_double_quotes;
       continue;
     }
 
     if (shell_is_argument_separator(current, in_single_quotes, in_double_quotes))
     {
-      // Repeated unquoted whitespace collapses because closed args stay closed.
+      // Repeated unquoted whitespace collapses into one argument boundary.
       shell_end_argument(&write, &argument_open);
       continue;
     }
 
-    // Regular characters start or continue the current argument.
+    // Normal characters become part of the current shell word.
     shell_begin_argument(command, write, &argument_open);
     *write++ = current;
   }
 
-  // Terminate the last argument when the line ends.
+  // Close the final word if the line ended while one was open.
   shell_end_argument(&write, &argument_open);
 
-  // execv-style argv arrays must end with a NULL sentinel.
+  // Keep argv directly usable by execv.
   command->argv[command->argc] = NULL;
+
+  shell_extract_stdout_redirect(command, argument_was_quoted);
 
   if (command->argc > 0)
   {
-    // Keep name as a convenient alias for argv[0].
+    // The executable name is always the first parsed word.
     command->name = command->argv[0];
   }
 }

@@ -11,6 +11,7 @@
 typedef struct
 {
   char *name;
+  char *stdout_path;
   size_t argc;
   char *argv[SHELL_MAX_ARGS + 1];
 } shell_command_t;
