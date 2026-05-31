@@ -30,12 +30,12 @@ static void shell_end_argument(char **write, bool *argument_open)
   *argument_open = false;
 }
 
-static bool shell_is_argument_separator(char current, bool in_single_quotes)
+static bool shell_is_argument_separator(char current, bool in_single_quotes, bool in_double_quotes)
 {
-  return !in_single_quotes && isspace((unsigned char)current);
+  return !in_single_quotes && !in_double_quotes && isspace((unsigned char)current);
 }
 
-// Split a mutable command line into shell words, removing single quote syntax.
+// Split a mutable command line into shell words, removing quote syntax.
 void shell_parse_command(char *line, shell_command_t *command)
 {
   // Reset the command view before filling it from the input buffer.
@@ -46,23 +46,32 @@ void shell_parse_command(char *line, shell_command_t *command)
   char *read = line;
   char *write = line;
 
-  // Inside single quotes, whitespace is copied instead of ending an argument.
+  // Inside quotes, whitespace is copied instead of ending an argument.
   bool in_single_quotes = false;
+  bool in_double_quotes = false;
   bool argument_open = false;
 
   for (; *read != '\0'; read++)
   {
     char current = *read;
 
-    if (current == '\'')
+    if (current == '\'' && !in_double_quotes)
     {
-      // Quote marks affect parsing, but are not copied into the argument.
+      // Single quote marks affect parsing, but are not copied into the argument.
       shell_begin_argument(command, write, &argument_open);
       in_single_quotes = !in_single_quotes;
       continue;
     }
 
-    if (shell_is_argument_separator(current, in_single_quotes))
+    if (current == '"' && !in_single_quotes)
+    {
+      // Double quote marks affect parsing, but are not copied into the argument.
+      shell_begin_argument(command, write, &argument_open);
+      in_double_quotes = !in_double_quotes;
+      continue;
+    }
+
+    if (shell_is_argument_separator(current, in_single_quotes, in_double_quotes))
     {
       // Repeated unquoted whitespace collapses because closed args stay closed.
       shell_end_argument(&write, &argument_open);
