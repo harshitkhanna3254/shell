@@ -35,6 +35,11 @@ static bool shell_is_argument_separator(char current, bool in_single_quotes, boo
   return !in_single_quotes && !in_double_quotes && isspace((unsigned char)current);
 }
 
+static bool shell_is_double_quote_escape(char current)
+{
+  return current == '"' || current == '\\';
+}
+
 // Split a mutable command line into shell words, removing quote syntax.
 void shell_parse_command(char *line, shell_command_t *command)
 {
@@ -66,6 +71,22 @@ void shell_parse_command(char *line, shell_command_t *command)
       }
 
       *write++ = *read;
+      continue;
+    }
+
+    if (current == '\\' && in_double_quotes)
+    {
+      // Inside double quotes, backslash only escapes selected characters.
+      shell_begin_argument(command, write, &argument_open);
+
+      if (shell_is_double_quote_escape(read[1]))
+      {
+        read++;
+        *write++ = *read;
+        continue;
+      }
+
+      *write++ = current;
       continue;
     }
 
