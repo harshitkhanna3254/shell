@@ -55,6 +55,20 @@ void shell_parse_command(char *line, shell_command_t *command)
   {
     char current = *read;
 
+    if (current == '\\' && !in_single_quotes && !in_double_quotes)
+    {
+      shell_begin_argument(command, write, &argument_open);
+      read++;
+
+      if (*read == '\0')
+      {
+        break;
+      }
+
+      *write++ = *read;
+      continue;
+    }
+
     if (current == '\'' && !in_double_quotes)
     {
       // Single quote marks affect parsing, but are not copied into the argument.
